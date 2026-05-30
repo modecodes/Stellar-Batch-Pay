@@ -15,13 +15,24 @@ import {
 import { useWallet } from "@/contexts/WalletContext";
 import { useBalances } from "@/hooks/use-balances";
 import { useTrustlines } from "@/hooks/use-trustlines";
-import { aggregatePaymentsByAsset, type AssetAmount } from "@/utils/aggregateAssets";
+import {
+  aggregatePaymentsByAsset,
+  type AssetAmount,
+} from "@/utils/aggregateAssets";
 import { validateBatchSubmission } from "@/utils/validation";
 import type { PaymentInstruction } from "@/lib/stellar/types";
+
+const BATCH_SIZE_WARN_BYTES = 90_000;
+
+interface BatchMetaEntry {
+  ops: number;
+  estimatedBytes: number;
+}
 
 interface BatchReviewProps {
   payments: PaymentInstruction[];
   network: "testnet" | "mainnet";
+  batchMeta?: BatchMetaEntry[];
   skippedIndices: number[];
   convertedIndices: number[];
   onSkipToggle: (index: number) => void;
@@ -32,6 +43,7 @@ interface BatchReviewProps {
 export function BatchReview({
   payments,
   network,
+  batchMeta,
   skippedIndices,
   convertedIndices,
   onSkipToggle,
@@ -111,11 +123,20 @@ export function BatchReview({
 
   const mappedBalances = useMemo<AssetAmount[]>(() => {
     return balances.map((bal) => ({
-      asset: bal.assetCode === "XLM" ? "XLM" : `${bal.assetCode}:${bal.assetIssuer}`,
+      asset:
+        bal.assetCode === "XLM" ? "XLM" : `${bal.assetCode}:${bal.assetIssuer}`,
       total: bal.balance,
       count: 1,
     }));
   }, [balances]);
+
+  const largeBatches = useMemo(
+    () =>
+      (batchMeta ?? []).filter(
+        (batch) => batch.estimatedBytes > BATCH_SIZE_WARN_BYTES,
+      ),
+    [batchMeta],
+  );
 
   const validation = validateBatchSubmission(
     payments.filter(
@@ -180,6 +201,30 @@ export function BatchReview({
 
   return (
     <div className="space-y-6">
+      {largeBatches.length > 0 && (
+        <Card className="bg-amber-500/10 border-amber-500/30">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-amber-200 font-medium">
+                  {largeBatches.length} batch
+                  {largeBatches.length > 1 ? "es" : ""} near the 100KB
+                  transaction limit
+                </p>
+                <p className="text-sm text-amber-100/80">
+                  Largest estimate:{" "}
+                  {Math.max(
+                    ...largeBatches.map((b) => b.estimatedBytes),
+                  ).toLocaleString()}{" "}
+                  bytes. Long memos may require fewer payments per transaction.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Balances Summary */}
       <Card className="bg-slate-900/50 border-slate-800">
         <CardHeader>

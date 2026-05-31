@@ -27,6 +27,7 @@ import {
 } from "./validator";
 import { getRecommendedFee } from "./fee-service";
 import { isBadSequenceError } from "./submit-errors";
+import { horizonUrl } from "./network-config";
 import Big from "big.js";
 import { parseStellarAmount, formatStellarAmount, parseAsset } from "./utils";
 export { parseAsset };
@@ -47,12 +48,7 @@ export class StellarService {
     this.network = config.network;
     this.maxOperationsPerTransaction = config.maxOperationsPerTransaction;
 
-    const serverUrl =
-      config.network === "testnet"
-        ? "https://horizon-testnet.stellar.org"
-        : "https://horizon.stellar.org";
-
-    this.server = new Horizon.Server(serverUrl);
+    this.server = new Horizon.Server(horizonUrl(config.network));
   }
 
   /**
